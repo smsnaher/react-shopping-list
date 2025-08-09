@@ -1,0 +1,44 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+ul.shopping-list {
+  list-style-type: none;
+  padding: 0;
+
+  li {
+    border: 1px solid #ccc;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #f0f0f0;
+    }
+
+    &:active {
+      background-color: #e0e0e0;
+    }
+
+    a {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1em;
+      text-decoration: none;
+      color: inherit;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    p {
+      margin: 0;
+    }
+  }
+}
