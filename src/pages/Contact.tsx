@@ -1,10 +1,10 @@
-import { Header } from './Header';
-
-export const Contact = () => {
+const Contact = () => {
     return (
         <div>
-            <Header title="Contact Us" />
+            <h1>Contact Us</h1>
             <p>If you have any questions, feel free to reach out!</p>
         </div>
     )
 }
+
+export default Contact

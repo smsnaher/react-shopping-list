@@ -1,44 +1,73 @@
 #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  flex: 1;
+}
+
+.App {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
 }
 
+.header{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.header button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.header button:hover {
+  background-color: #2563eb;
+}
+
 ul.shopping-list {
   list-style-type: none;
   padding: 0;
+}
 
-  li {
-    border: 1px solid #ccc;
-    margin-bottom: 0.5rem;
-    cursor: pointer;
+ul.shopping-list li {
+  border: 1px solid #ccc;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+}
 
-    &:hover {
-      background-color: #f0f0f0;
-    }
+ul.shopping-list li:hover {
+  background-color: #f0f0f0;
+}
 
-    &:active {
-      background-color: #e0e0e0;
-    }
+ul.shopping-list li:active {
+  background-color: #e0e0e0;
+}
 
-    a {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 1em;
-      text-decoration: none;
-      color: inherit;
-      width: 100%;
-      box-sizing: border-box;
-    }
+ul.shopping-list li a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1em;
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
 
-    h2 {
-      margin: 0;
-      font-size: 1.2rem;
-    }
+ul.shopping-list li h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
 
-    p {
-      margin: 0;
-    }
-  }
+ul.shopping-list li p {
+  margin: 0;
 }

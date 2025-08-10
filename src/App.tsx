@@ -1,21 +1,24 @@
 import { Routes, Route } from 'react-router-dom'
 import './App.css'
-import ShoppingList from './components/ShoppingList'
-import ItemDetail from './components/ItemDetail'
-import PageAbout from './components/PageAbout'
-import { Page404 } from './components/Page404'
-import { Contact } from './components/Contact'
+// import { Navigation, Breadcrumb } from './components/index'
+import Home from './pages/Home'
+import ItemDetail from './pages/ItemDetail'
+import About from './pages/About'
+import NotFound from './pages/NotFound'
+import Contact from './pages/Contact'
 
 function App() {
   return (
     <>
+      {/* <Navigation /> */}
+      {/* <Breadcrumb /> */}
       <div className="App">
         <Routes>
-          <Route path="/" element={<ShoppingList />} />
-          <Route path="/about" element={<PageAbout />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
           <Route path="/item/:itemId" element={<ItemDetail />} />
           <Route path='/contact' element={<Contact />} />
-          <Route path="*" element={<Page404 />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </>

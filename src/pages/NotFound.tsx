@@ -1,4 +1,4 @@
-export const Page404 = () => {
+const NotFound = () => {
   return (
     <div>
       <h1>404 - Not Found</h1>
@@ -6,3 +6,5 @@ export const Page404 = () => {
     </div>
   )
 }
+
+export default NotFound
