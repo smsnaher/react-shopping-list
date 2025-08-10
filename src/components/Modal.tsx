@@ -4,28 +4,34 @@ import './Modal.css'
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (listName: string) => void
+  onSubmit: (itemName: string) => void
   title: string
 }
 
 const Modal = ({ isOpen, onClose, onSubmit, title }: ModalProps) => {
-  const [listName, setListName] = useState('')
+  const [itemName, setItemName] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (listName.trim()) {
-      onSubmit(listName.trim())
-      setListName('')
+    if (itemName.trim()) {
+      onSubmit(itemName.trim())
+      setItemName('')
       onClose()
     }
   }
 
   const handleClose = () => {
-    setListName('')
+    setItemName('')
     onClose()
   }
 
   if (!isOpen) return null
+
+  // Determine labels based on title
+  const isAddingItem = title.toLowerCase().includes('item')
+  const inputLabel = isAddingItem ? 'Item Name:' : 'List Name:'
+  const placeholder = isAddingItem ? 'Enter item name' : 'Enter list name'
+  const submitButtonText = isAddingItem ? 'Add Item' : 'Create List'
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -39,13 +45,13 @@ const Modal = ({ isOpen, onClose, onSubmit, title }: ModalProps) => {
         
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
-            <label htmlFor="listName">List Name:</label>
+            <label htmlFor="itemName">{inputLabel}</label>
             <input
               type="text"
-              id="listName"
-              value={listName}
-              onChange={(e) => setListName(e.target.value)}
-              placeholder="Enter list name"
+              id="itemName"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder={placeholder}
               autoFocus
               required
             />
@@ -56,7 +62,7 @@ const Modal = ({ isOpen, onClose, onSubmit, title }: ModalProps) => {
               Cancel
             </button>
             <button type="submit" className="btn-submit">
-              Create List
+              {submitButtonText}
             </button>
           </div>
         </form>

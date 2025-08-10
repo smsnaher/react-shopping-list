@@ -1,10 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { items } from '../data/items'
+import { 
+  generateItemId, 
+  loadItemsFromStorage, 
+  saveItemsToStorage, 
+  type Item 
+} from '../data/items'
 import Modal from '../components/Modal'
 
 const Home = () => {
+    const [items, setItems] = useState<Item[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
+
+    // Load items from localStorage on component mount
+    useEffect(() => {
+        const storedItems = loadItemsFromStorage()
+        setItems(storedItems)
+    }, [])
+
+    // Save items to localStorage whenever items change
+    useEffect(() => {
+        if (items.length > 0) {
+            saveItemsToStorage(items)
+        }
+    }, [items])
 
     const handleNewList = () => {
         setIsModalOpen(true)
@@ -14,17 +33,26 @@ const Home = () => {
         setIsModalOpen(false)
     }
 
-    const handleCreateList = (listName: string) => {
-        // For now, just log the list name - you can implement actual list creation logic later
-        console.log('Creating new list:', listName)
-        // TODO: Add logic to create a new list with the provided name
+    const handleCreateList = (itemName: string) => {
+        const newItem: Item = {
+            id: generateItemId(itemName),
+            name: itemName,
+            quantity: 1, // Default quantity
+            description: `New item: ${itemName}`
+        }
+        
+        setItems(prevItems => {
+            const updatedItems = [...prevItems, newItem]
+            return updatedItems
+        })
+        console.log('Added new item:', newItem)
     }
 
     return (
         <div>
             <div className="header">
                 <h3>Shopping List </h3>
-                <button onClick={handleNewList}>+ new list</button>
+                <button onClick={handleNewList}>+ add item</button>
             </div>
 
             <ul className="shopping-list">
@@ -42,7 +70,7 @@ const Home = () => {
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
                 onSubmit={handleCreateList}
-                title="Create New Shopping List"
+                title="Add New Item"
             />
         </div>
     )

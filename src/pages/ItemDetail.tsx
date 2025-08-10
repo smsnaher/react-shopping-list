@@ -1,9 +1,28 @@
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { getItemById } from '../data/items'
+import { loadItemsFromStorage, getItemByIdFromList, type Item } from '../data/items'
 
 function ItemDetail() {
     const { itemId } = useParams<{ itemId: string }>()
-    const item = itemId ? getItemById(itemId) : undefined
+    const [item, setItem] = useState<Item | undefined>(undefined)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        if (itemId) {
+            const items = loadItemsFromStorage()
+            const foundItem = getItemByIdFromList(itemId, items)
+            setItem(foundItem)
+        }
+        setLoading(false)
+    }, [itemId])
+
+    if (loading) {
+        return (
+            <div>
+                <p>Loading...</p>
+            </div>
+        )
+    }
 
     if (!item) {
         return (
