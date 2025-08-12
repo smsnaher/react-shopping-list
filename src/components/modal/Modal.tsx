@@ -13,19 +13,12 @@ const Modal = ({ isOpen, onClose, onSubmit, title }: ModalProps) => {
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault()
-		console.log(itemName.trim());
-
 		if (itemName.trim()) {
 			onSubmit(itemName.trim())
 			setItemName('')
 			onClose()
 		}
 	}
-
-	useEffect(() => {
-		// console.log(onSubmit);
-	}, [onSubmit])
-
 
 	const handleClose = () => {
 		setItemName('')
@@ -38,7 +31,7 @@ const Modal = ({ isOpen, onClose, onSubmit, title }: ModalProps) => {
 	const isAddingItem = title.toLowerCase().includes('item')
 	const inputLabel = isAddingItem ? 'Item Name:' : 'List Name:'
 	const placeholder = isAddingItem ? 'Enter item name' : 'Enter list name'
-	const submitButtonText = isAddingItem ? 'Add Item' : 'Create List'
+	const submitButtonText = isAddingItem ? 'Add Item' : 'Create List';
 
 	return (
 		<div className="modal-overlay" onClick={handleClose}>
