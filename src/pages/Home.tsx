@@ -12,18 +12,8 @@ const Home = () => {
     const [items, setItems] = useState<Item[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
 
-    const [ideaOfNewItem, setIdeaOfNewItem] = useState<Array<{ id: number, name: string }>>([
-        { 'id': 1, 'name': 'New Item 1' },
-        { 'id': 2, 'name': 'New Item 2' },
-        { 'id': 3, 'name': 'New Item 3' },
-    ])
-
-    // Load items from localStorage on component mount
     useEffect(() => {
-        console.log(items, ideaOfNewItem);
-
         const storedItems = loadItemsFromStorage()
-        console.log(storedItems, ideaOfNewItem);
         setItems(storedItems)
     }, [])
 
