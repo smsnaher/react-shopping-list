@@ -8,7 +8,6 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -33,8 +32,7 @@ export class FirestoreService {
       const itemsRef = collection(db, ITEMS_COLLECTION);
       const q = query(
         itemsRef,
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
+        where('userId', '==', userId)
       );
       
       const querySnapshot = await getDocs(q);
