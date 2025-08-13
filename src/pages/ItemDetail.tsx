@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import {
     loadItemsFromStorage,
     getItemByIdFromList,
@@ -20,13 +21,14 @@ declare global {
 
 function ItemDetail() {
     const { itemId } = useParams<{ itemId: string }>()
+    const { currentUser } = useAuth()
     const [item, setItem] = useState<Item | undefined>(undefined)
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
 
     const loadItem = () => {
-        if (itemId) {
-            const items = loadItemsFromStorage()
+        if (itemId && currentUser) {
+            const items = loadItemsFromStorage(currentUser.uid)
             const foundItem = getItemByIdFromList(itemId, items)
             setItem(foundItem)
             window.newItem = foundItem ? JSON.stringify(foundItem) : undefined;
@@ -38,7 +40,7 @@ function ItemDetail() {
         loadItem()
         // item to window so that I can get it from browser
         console.log(itemId);
-    }, [itemId])
+    }, [itemId, currentUser])
 
     if (loading) {
         return (
@@ -66,7 +68,7 @@ function ItemDetail() {
     }
 
     const handleAddChildItem = (title: string, price: number) => {
-        if (!item) return
+        if (!item || !currentUser) return
 
         const newChildItem: ChildItem = {
             id: generateChildItemId(title),
@@ -74,7 +76,7 @@ function ItemDetail() {
             price
         }
 
-        const updatedItem = addChildItemToItem(item.id, newChildItem)
+        const updatedItem = addChildItemToItem(item.id, newChildItem, currentUser.uid)
         if (updatedItem) {
             setItem(updatedItem)
             console.log('Added child item:', newChildItem)
@@ -82,12 +84,12 @@ function ItemDetail() {
     }
 
     const handleDeleteChildItem = (childItemId: string) => {
-        if (!item) return
+        if (!item || !currentUser) return
 
         const userConfirmed = confirm("Are you sure you want to delete this item?")
         if (!userConfirmed) return
 
-        const updatedItem = removeChildItemFromItem(item.id, childItemId)
+        const updatedItem = removeChildItemFromItem(item.id, childItemId, currentUser.uid)
         if (updatedItem) {
             setItem(updatedItem)
             console.log('Deleted child item:', childItemId)

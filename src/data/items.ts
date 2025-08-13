@@ -54,11 +54,14 @@ export const generateChildItemId = (title: string): string => {
 }
 
 // localStorage utilities
-const STORAGE_KEY = 'shopping-list-items'
+const getStorageKey = (userId?: string): string => {
+  return userId ? `shopping-list-items-${userId}` : 'shopping-list-items'
+}
 
-export const loadItemsFromStorage = (): Item[] => {
+export const loadItemsFromStorage = (userId?: string): Item[] => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const storageKey = getStorageKey(userId)
+    const stored = localStorage.getItem(storageKey)
     if (stored) {
       return JSON.parse(stored)
     }
@@ -68,9 +71,10 @@ export const loadItemsFromStorage = (): Item[] => {
   return items // Return default items if nothing in storage or error
 }
 
-export const saveItemsToStorage = (itemsToSave: Item[]): void => {
+export const saveItemsToStorage = (itemsToSave: Item[], userId?: string): void => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsToSave))
+    const storageKey = getStorageKey(userId)
+    localStorage.setItem(storageKey, JSON.stringify(itemsToSave))
   } catch (error) {
     console.error('Error saving items to localStorage:', error)
   }
@@ -80,21 +84,21 @@ export const getItemByIdFromList = (id: string, itemsList: Item[]): Item | undef
   return itemsList.find(item => item.id === id)
 }
 
-export const updateItemInStorage = (updatedItem: Item): void => {
+export const updateItemInStorage = (updatedItem: Item, userId?: string): void => {
   try {
-    const items = loadItemsFromStorage()
+    const items = loadItemsFromStorage(userId)
     const updatedItems = items.map(item => 
       item.id === updatedItem.id ? updatedItem : item
     )
-    saveItemsToStorage(updatedItems)
+    saveItemsToStorage(updatedItems, userId)
   } catch (error) {
     console.error('Error updating item in localStorage:', error)
   }
 }
 
-export const addChildItemToItem = (parentItemId: string, childItem: ChildItem): Item | null => {
+export const addChildItemToItem = (parentItemId: string, childItem: ChildItem, userId?: string): Item | null => {
   try {
-    const items = loadItemsFromStorage()
+    const items = loadItemsFromStorage(userId)
     const parentItem = items.find(item => item.id === parentItemId)
     
     if (parentItem) {
@@ -102,7 +106,7 @@ export const addChildItemToItem = (parentItemId: string, childItem: ChildItem): 
         parentItem.childItems = []
       }
       parentItem.childItems.push(childItem)
-      updateItemInStorage(parentItem)
+      updateItemInStorage(parentItem, userId)
       return parentItem
     }
     return null
@@ -112,14 +116,14 @@ export const addChildItemToItem = (parentItemId: string, childItem: ChildItem): 
   }
 }
 
-export const removeChildItemFromItem = (parentItemId: string, childItemId: string): Item | null => {
+export const removeChildItemFromItem = (parentItemId: string, childItemId: string, userId?: string): Item | null => {
   try {
-    const items = loadItemsFromStorage()
+    const items = loadItemsFromStorage(userId)
     const parentItem = items.find(item => item.id === parentItemId)
     
     if (parentItem && parentItem.childItems) {
       parentItem.childItems = parentItem.childItems.filter(child => child.id !== childItemId)
-      updateItemInStorage(parentItem)
+      updateItemInStorage(parentItem, userId)
       return parentItem
     }
     return null

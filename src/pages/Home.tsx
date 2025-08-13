@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Modal } from '../components/index'
+import { useAuth } from '../contexts/AuthContext'
 import {
     generateItemId,
     loadItemsFromStorage,
@@ -9,20 +10,23 @@ import {
 } from '../data/items'
 
 const Home = () => {
+    const { currentUser } = useAuth()
     const [items, setItems] = useState<Item[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
 
     useEffect(() => {
-        const storedItems = loadItemsFromStorage()
-        setItems(storedItems)
-    }, [])
+        if (currentUser) {
+            const storedItems = loadItemsFromStorage(currentUser.uid)
+            setItems(storedItems)
+        }
+    }, [currentUser])
 
     // Save items to localStorage whenever items change
     useEffect(() => {
-        if (items.length > 0) {
-            saveItemsToStorage(items)
+        if (items.length > 0 && currentUser) {
+            saveItemsToStorage(items, currentUser.uid)
         }
-    }, [items])
+    }, [items, currentUser])
 
     // Monitor modal state changes
     useEffect(() => {
