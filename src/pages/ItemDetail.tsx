@@ -1,23 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { FirestoreService } from '../services/firestore'
 import {
-    loadItemsFromStorage,
-    getItemByIdFromList,
-    addChildItemToItem,
-    removeChildItemFromItem,
     generateChildItemId,
     type Item,
     type ChildItem
 } from '../data/items'
 import ChildItemModal from '../components/modal/ChildItemModal'
-
-// Extend the Window interface to include 'newItem'
-declare global {
-    interface Window {
-        newItem?: string;
-    }
-}
 
 function ItemDetail() {
     const { itemId } = useParams<{ itemId: string }>()
@@ -26,20 +16,26 @@ function ItemDetail() {
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
 
-    const loadItem = () => {
-        if (itemId && currentUser) {
-            const items = loadItemsFromStorage(currentUser.uid)
-            const foundItem = getItemByIdFromList(itemId, items)
-            setItem(foundItem)
-            window.newItem = foundItem ? JSON.stringify(foundItem) : undefined;
-        }
-        setLoading(false)
-    }
-
+    // Load item from Firestore
     useEffect(() => {
+        const loadItem = async () => {
+            if (itemId && currentUser) {
+                try {
+                    setLoading(true)
+                    const foundItem = await FirestoreService.getItemById(itemId, currentUser.uid)
+                    setItem(foundItem || undefined)
+                } catch (error) {
+                    console.error('Error loading item:', error)
+                    setItem(undefined)
+                } finally {
+                    setLoading(false)
+                }
+            } else {
+                setLoading(false)
+            }
+        }
+
         loadItem()
-        // item to window so that I can get it from browser
-        console.log(itemId);
     }, [itemId, currentUser])
 
     if (loading) {
@@ -67,32 +63,56 @@ function ItemDetail() {
         setIsModalOpen(false)
     }
 
-    const handleAddChildItem = (title: string, price: number) => {
-        if (!item || !currentUser) return
+    const handleAddChildItem = async (title: string, price: number) => {
+        if (!item || !currentUser || !itemId) return
 
-        const newChildItem: ChildItem = {
-            id: generateChildItemId(title),
-            title,
-            price
-        }
+        try {
+            const newChildItem: ChildItem = {
+                id: generateChildItemId(title),
+                title,
+                price
+            }
 
-        const updatedItem = addChildItemToItem(item.id, newChildItem, currentUser.uid)
-        if (updatedItem) {
-            setItem(updatedItem)
+            await FirestoreService.addChildItem(itemId, newChildItem, currentUser.uid)
+            
+            // Update local state
+            setItem(prevItem => {
+                if (!prevItem) return prevItem
+                return {
+                    ...prevItem,
+                    childItems: [...(prevItem.childItems || []), newChildItem]
+                }
+            })
+            
             console.log('Added child item:', newChildItem)
+        } catch (error) {
+            console.error('Error adding child item:', error)
+            alert('Failed to add item. Please try again.')
         }
     }
 
-    const handleDeleteChildItem = (childItemId: string) => {
-        if (!item || !currentUser) return
+    const handleDeleteChildItem = async (childItemId: string) => {
+        if (!item || !currentUser || !itemId) return
 
         const userConfirmed = confirm("Are you sure you want to delete this item?")
         if (!userConfirmed) return
 
-        const updatedItem = removeChildItemFromItem(item.id, childItemId, currentUser.uid)
-        if (updatedItem) {
-            setItem(updatedItem)
+        try {
+            await FirestoreService.removeChildItem(itemId, childItemId, currentUser.uid)
+            
+            // Update local state
+            setItem(prevItem => {
+                if (!prevItem) return prevItem
+                return {
+                    ...prevItem,
+                    childItems: (prevItem.childItems || []).filter((child: ChildItem) => child.id !== childItemId)
+                }
+            })
+            
             console.log('Deleted child item:', childItemId)
+        } catch (error) {
+            console.error('Error deleting child item:', error)
+            alert('Failed to delete item. Please try again.')
         }
     }
 
