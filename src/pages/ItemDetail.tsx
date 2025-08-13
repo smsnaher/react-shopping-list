@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { 
-  loadItemsFromStorage, 
-  getItemByIdFromList, 
-  addChildItemToItem,
-  removeChildItemFromItem,
-  generateChildItemId,
-  type Item,
-  type ChildItem 
+import {
+    loadItemsFromStorage,
+    getItemByIdFromList,
+    addChildItemToItem,
+    removeChildItemFromItem,
+    generateChildItemId,
+    type Item,
+    type ChildItem
 } from '../data/items'
 import ChildItemModal from '../components/modal/ChildItemModal'
+
+// Extend the Window interface to include 'newItem'
+declare global {
+    interface Window {
+        newItem?: string;
+    }
+}
 
 function ItemDetail() {
     const { itemId } = useParams<{ itemId: string }>()
@@ -22,14 +29,15 @@ function ItemDetail() {
             const items = loadItemsFromStorage()
             const foundItem = getItemByIdFromList(itemId, items)
             setItem(foundItem)
+            window.newItem = foundItem ? JSON.stringify(foundItem) : undefined;
         }
         setLoading(false)
     }
 
     useEffect(() => {
-        console.log(itemId);
-        
         loadItem()
+        // item to window so that I can get it from browser
+        console.log(itemId);
     }, [itemId])
 
     if (loading) {
@@ -99,13 +107,10 @@ function ItemDetail() {
                 <h1>{item.name}</h1>
                 <button onClick={handleNewChildList}>+ Add a Child Item</button>
             </div>
-            
+
             <div className="item-details">
-                <p><strong>Quantity:</strong> {item.quantity}</p>
-                {item.description && (
-                    <p><strong>Description:</strong> {item.description}</p>
-                )}
-                
+                <p><strong>Quantity:</strong> {item.childItems?.length}</p>
+
                 {item.childItems && item.childItems.length > 0 && (
                     <div className="total-section">
                         <p><strong>Total Price: ${getTotalPrice().toFixed(2)}</strong></p>
@@ -115,7 +120,7 @@ function ItemDetail() {
 
             <div className="child-items-section">
                 <h2>Child Items ({item.childItems?.length || 0})</h2>
-                
+
                 {item.childItems && item.childItems.length > 0 ? (
                     <ul className="child-items-list">
                         {item.childItems.map(childItem => (
@@ -125,7 +130,7 @@ function ItemDetail() {
                                         <h3>{childItem.title}</h3>
                                         <p className="price">${childItem.price.toFixed(2)}</p>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => handleDeleteChildItem(childItem.id)}
                                         className="delete-btn"
                                         title="Delete item"

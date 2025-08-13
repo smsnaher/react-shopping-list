@@ -35,7 +35,7 @@ const ChildItemModal = ({ isOpen, onClose, onSubmit, title }: ChildItemModalProp
 
   // Log the modal state and title for debugging
   useEffect(() => {
-    console.log(`Modal isOpen: ${isOpen}, title: ${title}`);
+    // console.log(`Modal isOpen: ${isOpen}, title: ${title}`);
     
   }, [])
 
