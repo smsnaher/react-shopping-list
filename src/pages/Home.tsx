@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Modal } from '../components/index'
+import EditModal from '../components/modal/EditModal'
 import { useAuth } from '../contexts/AuthContext'
 import { FirestoreService } from '../services/firestore'
 import type { ListItem } from '../data/items'
@@ -9,6 +10,8 @@ const Home = () => {
     const { currentUser } = useAuth()
     const [items, setItems] = useState<ListItem[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [editingItem, setEditingItem] = useState<ListItem | null>(null)
     const [loading, setLoading] = useState(true)
     const [initialLoad, setInitialLoad] = useState(true)
     const unsubscribeRef = useRef<(() => void) | null>(null)
@@ -133,6 +136,44 @@ const Home = () => {
             alert('Failed to delete item. Please try again.')
         }
     }
+
+    const handleEditItem = (item: ListItem) => {
+        setEditingItem(item)
+        setIsEditModalOpen(true)
+    }
+
+    const handleCloseEditModal = () => {
+        setIsEditModalOpen(false)
+        setEditingItem(null)
+    }
+
+    const handleUpdateItem = async (name: string, description: string) => {
+        if (!currentUser || !editingItem) return
+
+        try {
+            // Optimistic update - update UI immediately
+            const updatedItem = { ...editingItem, name, description }
+            setItems(prevItems => 
+                prevItems.map(item => 
+                    item.id === editingItem.id ? updatedItem : item
+                )
+            )
+
+            // Update in Firestore
+            await FirestoreService.updateItem(editingItem.id, { name, description })
+            
+            console.log('✅ Updated item:', updatedItem)
+        } catch (error) {
+            // Revert optimistic update on error
+            setItems(prevItems => 
+                prevItems.map(item => 
+                    item.id === editingItem.id ? editingItem : item
+                )
+            )
+            console.error('Error updating item:', error)
+            alert('Failed to update item. Please try again.')
+        }
+    }
     return (
         <div>
             <div className="header">
@@ -163,8 +204,36 @@ const Home = () => {
                                 <Link to={`/item/${item.id}`}>
                                     <h2>{item.name}</h2>
                                     <p>Items: {item.childItems?.length || 0}</p>
+                                    {item.description && (
+                                        <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                                            {item.description}
+                                        </p>
+                                    )}
                                 </Link>
-                                <button onClick={() => handleDeleteItem(item.id)}>🗑</button>
+                                <div className="item-actions">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            handleEditItem(item)
+                                        }}
+                                        className="edit-btn"
+                                        title="Edit item"
+                                    >
+                                        ✏️
+                                    </button>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            handleDeleteItem(item.id)
+                                        }}
+                                        className="delete-btn"
+                                        title="Delete item"
+                                    >
+                                        🗑
+                                    </button>
+                                </div>
                             </li>
                         ))
                     )}
@@ -176,6 +245,15 @@ const Home = () => {
                 onClose={handleCloseModal}
                 onSubmit={handleCreateList}
                 title="Add New List Item"
+            />
+
+            <EditModal
+                isOpen={isEditModalOpen}
+                onClose={handleCloseEditModal}
+                onSubmit={handleUpdateItem}
+                title="Edit List Item"
+                initialName={editingItem?.name || ''}
+                initialDescription={editingItem?.description || ''}
             />
         </div>
     )

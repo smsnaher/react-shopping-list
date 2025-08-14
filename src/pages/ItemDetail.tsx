@@ -8,6 +8,7 @@ import {
     type ChildItem
 } from '../data/items'
 import ChildItemModal from '../components/modal/ChildItemModal'
+import EditChildItemModal from '../components/modal/EditChildItemModal'
 
 function ItemDetail() {
     const { itemId } = useParams<{ itemId: string }>()
@@ -15,6 +16,8 @@ function ItemDetail() {
     const [item, setItem] = useState<ListItem | undefined>(undefined)
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [editingChildItem, setEditingChildItem] = useState<ChildItem | null>(null)
 
     // Load item from Firestore
     useEffect(() => {
@@ -116,6 +119,52 @@ function ItemDetail() {
         }
     }
 
+    const handleEditChildItem = (childItem: ChildItem) => {
+        setEditingChildItem(childItem)
+        setIsEditModalOpen(true)
+    }
+
+    const handleCloseEditModal = () => {
+        setIsEditModalOpen(false)
+        setEditingChildItem(null)
+    }
+
+    const handleUpdateChildItem = async (title: string, price: number) => {
+        if (!item || !currentUser || !itemId || !editingChildItem) return
+
+        try {
+            // Optimistic update - update UI immediately
+            const updatedChildItem = { ...editingChildItem, title, price }
+            setItem(prevItem => {
+                if (!prevItem) return prevItem
+                return {
+                    ...prevItem,
+                    childItems: (prevItem.childItems || []).map((child: ChildItem) => 
+                        child.id === editingChildItem.id ? updatedChildItem : child
+                    )
+                }
+            })
+
+            // Update in Firestore
+            await FirestoreService.updateChildItem(itemId, editingChildItem.id, { title, price }, currentUser.uid)
+            
+            console.log('✅ Updated child item:', updatedChildItem)
+        } catch (error) {
+            // Revert optimistic update on error
+            setItem(prevItem => {
+                if (!prevItem) return prevItem
+                return {
+                    ...prevItem,
+                    childItems: (prevItem.childItems || []).map((child: ChildItem) => 
+                        child.id === editingChildItem.id ? editingChildItem : child
+                    )
+                }
+            })
+            console.error('Error updating child item:', error)
+            alert('Failed to update item. Please try again.')
+        }
+    }
+
     const getTotalPrice = () => {
         if (!item?.childItems) return 0
         return item.childItems.reduce((total, childItem) => total + childItem.price, 0)
@@ -152,13 +201,22 @@ function ItemDetail() {
                                         <h3>{childItem.title}</h3>
                                         <p className="price">${childItem.price.toFixed(2)}</p>
                                     </div>
-                                    <button
-                                        onClick={() => handleDeleteChildItem(childItem.id)}
-                                        className="delete-btn"
-                                        title="Delete item"
-                                    >
-                                        🗑
-                                    </button>
+                                    <div className="item-actions">
+                                        <button
+                                            onClick={() => handleEditChildItem(childItem)}
+                                            className="edit-btn"
+                                            title="Edit item"
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteChildItem(childItem.id)}
+                                            className="delete-btn"
+                                            title="Delete item"
+                                        >
+                                            🗑
+                                        </button>
+                                    </div>
                                 </div>
                             </li>
                         ))}
@@ -178,6 +236,15 @@ function ItemDetail() {
                 onClose={handleCloseModal}
                 onSubmit={handleAddChildItem}
                 title="Add New Child Item"
+            />
+
+            <EditChildItemModal
+                isOpen={isEditModalOpen}
+                onClose={handleCloseEditModal}
+                onSubmit={handleUpdateChildItem}
+                title="Edit Child Item"
+                initialTitle={editingChildItem?.title || ''}
+                initialPrice={editingChildItem?.price || 0}
             />
         </div>
     )

@@ -338,6 +338,25 @@ export class FirestoreService {
     }
   }
 
+  // Update a specific child item within a parent item
+  static async updateChildItem(itemId: string, childItemId: string, updates: Partial<ChildItem>, userId: string): Promise<void> {
+    try {
+      const item = await this.getItemById(itemId, userId);
+      if (!item) {
+        throw new Error('Parent item not found');
+      }
+
+      const updatedChildItems = (item.childItems || []).map((child: ChildItem) => 
+        child.id === childItemId ? { ...child, ...updates } : child
+      );
+
+      await this.updateItem(itemId, { childItems: updatedChildItems });
+    } catch (error) {
+      console.error('Error updating child item:', error);
+      throw error;
+    }
+  }
+
   // Update an existing item
   static async updateItem(itemId: string, updates: Partial<Omit<ListItem, 'id'>>): Promise<void> {
     try {
