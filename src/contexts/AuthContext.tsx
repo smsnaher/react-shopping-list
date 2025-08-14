@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
+import { FirestoreService } from '../services/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -39,6 +40,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      // Clear cache before signing out
+      if (currentUser) {
+        FirestoreService.clearCache(currentUser.uid);
+      }
       await signOut(auth);
     } catch (error) {
       console.error('Error signing out:', error);

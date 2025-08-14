@@ -8,13 +8,21 @@ import {
   deleteDoc,
   query,
   where,
-  Timestamp
+  onSnapshot,
+  Timestamp,
+  enableNetwork,
+  disableNetwork
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Item, ChildItem } from '../data/items';
 
 // Collection names
 const ITEMS_COLLECTION = 'shopping-items';
+
+// In-memory cache
+const itemsCache = new Map<string, Item[]>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const cacheTimestamps = new Map<string, number>();
 
 // Firestore document interface
 export interface FirestoreItem extends Omit<Item, 'id'> {
@@ -23,17 +31,72 @@ export interface FirestoreItem extends Omit<Item, 'id'> {
   updatedAt: Timestamp;
 }
 
+// Local storage utilities for offline support
+const getLocalStorageKey = (userId: string) => `firestore-cache-${userId}`;
+
+const saveToLocalStorage = (userId: string, items: Item[]) => {
+  try {
+    localStorage.setItem(getLocalStorageKey(userId), JSON.stringify({
+      items,
+      timestamp: Date.now()
+    }));
+  } catch (error) {
+    console.warn('Failed to save to localStorage:', error);
+  }
+};
+
+const loadFromLocalStorage = (userId: string): Item[] | null => {
+  try {
+    const stored = localStorage.getItem(getLocalStorageKey(userId));
+    if (stored) {
+      const data = JSON.parse(stored);
+      // Return cached data if it's less than 1 hour old
+      if (Date.now() - data.timestamp < 60 * 60 * 1000) {
+        return data.items;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load from localStorage:', error);
+  }
+  return null;
+};
+
 // Database operations for shopping items
 export class FirestoreService {
   
-  // Get all items for a user
-  static async getUserItems(userId: string): Promise<Item[]> {
+  // Check if cache is valid
+  private static isCacheValid(userId: string): boolean {
+    const timestamp = cacheTimestamps.get(userId);
+    return timestamp ? (Date.now() - timestamp) < CACHE_DURATION : false;
+  }
+
+  // Get all items for a user with caching and fallbacks
+  static async getUserItems(userId: string, useCache: boolean = true): Promise<Item[]> {
+    // 1. Return from memory cache if valid
+    if (useCache && this.isCacheValid(userId) && itemsCache.has(userId)) {
+      console.log('📋 Returning items from memory cache');
+      return itemsCache.get(userId)!;
+    }
+
+    // 2. Try to return from localStorage while fetching from Firestore
+    const cachedItems = loadFromLocalStorage(userId);
+    if (cachedItems && useCache) {
+      console.log('💾 Returning items from localStorage cache');
+      // Return cached data immediately, but also fetch fresh data in background
+      this.fetchFreshData(userId);
+      return cachedItems;
+    }
+
+    // 3. Fetch from Firestore
+    return this.fetchFreshData(userId);
+  }
+
+  // Fetch fresh data from Firestore
+  private static async fetchFreshData(userId: string): Promise<Item[]> {
     try {
+      console.log('🔥 Fetching fresh data from Firestore');
       const itemsRef = collection(db, ITEMS_COLLECTION);
-      const q = query(
-        itemsRef,
-        where('userId', '==', userId)
-      );
+      const q = query(itemsRef, where('userId', '==', userId));
       
       const querySnapshot = await getDocs(q);
       const items: Item[] = [];
@@ -49,22 +112,75 @@ export class FirestoreService {
         });
       });
       
+      // Update caches
+      itemsCache.set(userId, items);
+      cacheTimestamps.set(userId, Date.now());
+      saveToLocalStorage(userId, items);
+      
       return items;
     } catch (error) {
       console.error('Error fetching user items:', error);
+      
+      // If online fetch fails, try localStorage as last resort
+      const fallbackItems = loadFromLocalStorage(userId);
+      if (fallbackItems) {
+        console.log('⚠️ Using fallback data from localStorage');
+        return fallbackItems;
+      }
+      
       throw error;
     }
   }
 
-  // Get a single item by ID
+  // Set up real-time listener for items
+  static setupRealtimeListener(userId: string, callback: (items: Item[]) => void): () => void {
+    const itemsRef = collection(db, ITEMS_COLLECTION);
+    const q = query(itemsRef, where('userId', '==', userId));
+    
+    return onSnapshot(q, (querySnapshot) => {
+      const items: Item[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data() as FirestoreItem;
+        items.push({
+          id: doc.id,
+          name: data.name,
+          quantity: data.quantity,
+          description: data.description,
+          childItems: data.childItems || []
+        });
+      });
+      
+      // Update caches
+      itemsCache.set(userId, items);
+      cacheTimestamps.set(userId, Date.now());
+      saveToLocalStorage(userId, items);
+      
+      callback(items);
+    }, (error) => {
+      console.error('Real-time listener error:', error);
+    });
+  }
+
+  // Get a single item by ID with caching
   static async getItemById(itemId: string, userId: string): Promise<Item | null> {
     try {
+      // First check if we have it in cache
+      const cachedItems = itemsCache.get(userId);
+      if (cachedItems && this.isCacheValid(userId)) {
+        const cachedItem = cachedItems.find(item => item.id === itemId);
+        if (cachedItem) {
+          console.log('📋 Returning item from cache');
+          return cachedItem;
+        }
+      }
+
+      // Fetch from Firestore
       const itemRef = doc(db, ITEMS_COLLECTION, itemId);
       const itemSnap = await getDoc(itemRef);
       
       if (itemSnap.exists()) {
         const data = itemSnap.data() as FirestoreItem;
-        // Verify this item belongs to the user
         if (data.userId !== userId) {
           throw new Error('Unauthorized access to item');
         }
@@ -85,9 +201,19 @@ export class FirestoreService {
     }
   }
 
-  // Create a new item
+  // Create a new item with optimistic updates
   static async createItem(item: Omit<Item, 'id'>, userId: string): Promise<string> {
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-${Date.now()}`;
+    const optimisticItem: Item = { ...item, id: tempId };
+    
     try {
+      // Add to cache immediately for instant UI update
+      const cachedItems = itemsCache.get(userId) || [];
+      const updatedItems = [optimisticItem, ...cachedItems];
+      itemsCache.set(userId, updatedItems);
+      
+      // Create in Firestore
       const now = Timestamp.now();
       const firestoreItem: FirestoreItem = {
         ...item,
@@ -97,9 +223,118 @@ export class FirestoreService {
       };
       
       const docRef = await addDoc(collection(db, ITEMS_COLLECTION), firestoreItem);
+      
+      // Replace temporary item with real one
+      const finalItems = updatedItems.map(i => 
+        i.id === tempId ? { ...i, id: docRef.id } : i
+      );
+      itemsCache.set(userId, finalItems);
+      saveToLocalStorage(userId, finalItems);
+      
       return docRef.id;
     } catch (error) {
+      // Remove optimistic update on error
+      const cachedItems = itemsCache.get(userId) || [];
+      const rollbackItems = cachedItems.filter(i => i.id !== tempId);
+      itemsCache.set(userId, rollbackItems);
+      
       console.error('Error creating item:', error);
+      throw error;
+    }
+  }
+
+  // Delete an item with optimistic updates
+  static async deleteItem(itemId: string, userId: string): Promise<void> {
+    try {
+      // Remove from cache immediately for instant UI update
+      const cachedItems = itemsCache.get(userId) || [];
+      const optimisticItems = cachedItems.filter(item => item.id !== itemId);
+      const deletedItem = cachedItems.find(item => item.id === itemId);
+      
+      itemsCache.set(userId, optimisticItems);
+      
+      // Delete from Firestore
+      const itemRef = doc(db, ITEMS_COLLECTION, itemId);
+      await deleteDoc(itemRef);
+      
+      // Update localStorage
+      saveToLocalStorage(userId, optimisticItems);
+    } catch (error) {
+      // Restore item on error
+      if (deletedItem) {
+        const cachedItems = itemsCache.get(userId) || [];
+        itemsCache.set(userId, [...cachedItems, deletedItem]);
+      }
+      
+      console.error('Error deleting item:', error);
+      throw error;
+    }
+  }
+
+  // Add a child item with optimistic updates
+  static async addChildItem(itemId: string, childItem: ChildItem, userId: string): Promise<void> {
+    try {
+      // Update cache immediately
+      const cachedItems = itemsCache.get(userId) || [];
+      const updatedItems = cachedItems.map(item => {
+        if (item.id === itemId) {
+          return {
+            ...item,
+            childItems: [...(item.childItems || []), childItem]
+          };
+        }
+        return item;
+      });
+      
+      itemsCache.set(userId, updatedItems);
+      
+      // Update Firestore
+      const item = await this.getItemById(itemId, userId);
+      if (!item) throw new Error('Parent item not found');
+
+      const updatedChildItems = [...(item.childItems || []), childItem];
+      await this.updateItem(itemId, { childItems: updatedChildItems }, userId);
+      
+      // Update localStorage
+      saveToLocalStorage(userId, updatedItems);
+    } catch (error) {
+      // Rollback on error
+      await this.getUserItems(userId, false); // Force refresh from server
+      console.error('Error adding child item:', error);
+      throw error;
+    }
+  }
+
+  // Remove a child item with optimistic updates
+  static async removeChildItem(itemId: string, childItemId: string, userId: string): Promise<void> {
+    try {
+      // Update cache immediately
+      const cachedItems = itemsCache.get(userId) || [];
+      const updatedItems = cachedItems.map(item => {
+        if (item.id === itemId) {
+          return {
+            ...item,
+            childItems: (item.childItems || []).filter(child => child.id !== childItemId)
+          };
+        }
+        return item;
+      });
+      
+      itemsCache.set(userId, updatedItems);
+      
+      // Update Firestore
+      const item = await this.getItemById(itemId, userId);
+      if (!item) throw new Error('Parent item not found');
+
+      const updatedChildItems = (item.childItems || []).filter((child: ChildItem) => child.id !== childItemId);
+      await this.updateItem(itemId, { childItems: updatedChildItems }, userId);
+      
+      // Update localStorage
+      saveToLocalStorage(userId, updatedItems);
+    } catch (error) {
+      // Rollback on error
+      await this.getUserItems(userId, false); // Force refresh from server
+      console.error('Error removing child item:', error);
       throw error;
     }
   }
@@ -108,18 +343,6 @@ export class FirestoreService {
   static async updateItem(itemId: string, updates: Partial<Omit<Item, 'id'>>, userId: string): Promise<void> {
     try {
       const itemRef = doc(db, ITEMS_COLLECTION, itemId);
-      
-      // First verify the item belongs to the user
-      const itemSnap = await getDoc(itemRef);
-      if (!itemSnap.exists()) {
-        throw new Error('Item not found');
-      }
-      
-      const data = itemSnap.data() as FirestoreItem;
-      if (data.userId !== userId) {
-        throw new Error('Unauthorized access to item');
-      }
-      
       await updateDoc(itemRef, {
         ...updates,
         updatedAt: Timestamp.now()
@@ -130,58 +353,19 @@ export class FirestoreService {
     }
   }
 
-  // Delete an item
-  static async deleteItem(itemId: string, userId: string): Promise<void> {
-    try {
-      const itemRef = doc(db, ITEMS_COLLECTION, itemId);
-      
-      // First verify the item belongs to the user
-      const itemSnap = await getDoc(itemRef);
-      if (!itemSnap.exists()) {
-        throw new Error('Item not found');
-      }
-      
-      const data = itemSnap.data() as FirestoreItem;
-      if (data.userId !== userId) {
-        throw new Error('Unauthorized access to item');
-      }
-      
-      await deleteDoc(itemRef);
-    } catch (error) {
-      console.error('Error deleting item:', error);
-      throw error;
-    }
+  // Clear cache (useful for logout)
+  static clearCache(userId: string): void {
+    itemsCache.delete(userId);
+    cacheTimestamps.delete(userId);
+    localStorage.removeItem(getLocalStorageKey(userId));
   }
 
-  // Add a child item to an existing item
-  static async addChildItem(itemId: string, childItem: ChildItem, userId: string): Promise<void> {
+  // Preload data (call this early in app lifecycle)
+  static async preloadUserData(userId: string): Promise<void> {
     try {
-      const item = await this.getItemById(itemId, userId);
-      if (!item) {
-        throw new Error('Parent item not found');
-      }
-
-      const updatedChildItems = [...(item.childItems || []), childItem];
-      await this.updateItem(itemId, { childItems: updatedChildItems }, userId);
+      await this.getUserItems(userId, false);
     } catch (error) {
-      console.error('Error adding child item:', error);
-      throw error;
-    }
-  }
-
-  // Remove a child item from an existing item
-  static async removeChildItem(itemId: string, childItemId: string, userId: string): Promise<void> {
-    try {
-      const item = await this.getItemById(itemId, userId);
-      if (!item) {
-        throw new Error('Parent item not found');
-      }
-
-      const updatedChildItems = (item.childItems || []).filter((child: ChildItem) => child.id !== childItemId);
-      await this.updateItem(itemId, { childItems: updatedChildItems }, userId);
-    } catch (error) {
-      console.error('Error removing child item:', error);
-      throw error;
+      console.warn('Failed to preload user data:', error);
     }
   }
 }

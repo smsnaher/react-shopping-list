@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Modal } from '../components/index'
 import { useAuth } from '../contexts/AuthContext'
@@ -10,28 +10,54 @@ const Home = () => {
     const [items, setItems] = useState<Item[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [initialLoad, setInitialLoad] = useState(true)
+    const unsubscribeRef = useRef<(() => void) | null>(null)
 
-    // Load items from Firestore when user is available
+    // Load items with caching and real-time updates
     useEffect(() => {
+        if (!currentUser) {
+            setItems([])
+            setLoading(false)
+            setInitialLoad(false)
+            return
+        }
+
         const loadItems = async () => {
-            if (currentUser) {
-                try {
-                    setLoading(true)
-                    const userItems = await FirestoreService.getUserItems(currentUser.uid)
-                    setItems(userItems)
-                } catch (error) {
-                    console.error('Error loading items:', error)
-                } finally {
-                    setLoading(false)
-                }
-            } else {
-                setItems([])
+            try {
+                // Use cache for faster initial load
+                const userItems = await FirestoreService.getUserItems(currentUser.uid, true)
+                setItems(userItems)
+                setInitialLoad(false)
+                
+                // Set up real-time listener for live updates
+                unsubscribeRef.current = FirestoreService.setupRealtimeListener(
+                    currentUser.uid, 
+                    (updatedItems) => {
+                        setItems(updatedItems)
+                        console.log('📡 Received real-time update')
+                    }
+                )
+            } catch (error) {
+                console.error('Error loading items:', error)
+            } finally {
                 setLoading(false)
             }
         }
 
+        // Preload data for instant loading
+        if (initialLoad) {
+            FirestoreService.preloadUserData(currentUser.uid)
+        }
+
         loadItems()
-    }, [currentUser])
+
+        // Cleanup listener on unmount
+        return () => {
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current()
+            }
+        }
+    }, [currentUser, initialLoad])
 
     // Monitor modal state changes
     useEffect(() => {
@@ -57,16 +83,25 @@ const Home = () => {
                 childItems: []
             }
 
+            // Optimistic update - add to UI immediately
+            const tempId = `temp-${Date.now()}`
+            const optimisticItem = { ...newItem, id: tempId }
+            setItems(prevItems => [optimisticItem, ...prevItems])
+
+            // Create in Firestore
             const itemId = await FirestoreService.createItem(newItem, currentUser.uid)
             
-            // Add the new item to local state with the Firestore-generated ID
-            setItems(prevItems => [
-                { ...newItem, id: itemId },
-                ...prevItems
-            ])
+            // Replace temporary item with real one
+            setItems(prevItems => 
+                prevItems.map(item => 
+                    item.id === tempId ? { ...item, id: itemId } : item
+                )
+            )
             
-            console.log('Added new item:', { ...newItem, id: itemId })
+            console.log('✅ Added new item:', { ...newItem, id: itemId })
         } catch (error) {
+            // Remove optimistic update on error
+            setItems(prevItems => prevItems.filter(item => !item.id.startsWith('temp-')))
             console.error('Error creating item:', error)
             alert('Failed to create item. Please try again.')
         }
@@ -79,12 +114,19 @@ const Home = () => {
         if (!userConfirmed) return
 
         try {
+            // Optimistic update - remove from UI immediately
+            const itemToDelete = items.find(item => item.id === itemId)
+            setItems(prevItems => prevItems.filter(item => item.id !== itemId))
+
+            // Delete from Firestore
             await FirestoreService.deleteItem(itemId, currentUser.uid)
             
-            // Remove from local state
-            setItems(prevItems => prevItems.filter(item => item.id !== itemId))
-            console.log('Deleted item:', itemId)
+            console.log('✅ Deleted item:', itemId)
         } catch (error) {
+            // Restore item on error
+            if (itemToDelete) {
+                setItems(prevItems => [itemToDelete, ...prevItems])
+            }
             console.error('Error deleting item:', error)
             alert('Failed to delete item. Please try again.')
         }
@@ -96,8 +138,17 @@ const Home = () => {
                 <button onClick={handleNewList}>+ Add a List</button>
             </div>
 
-            {loading ? (
-                <div>Loading your shopping lists...</div>
+            {loading && initialLoad ? (
+                <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    padding: '3rem',
+                    color: '#666'
+                }}>
+                    <div style={{ marginRight: '0.5rem' }}>⏳</div>
+                    Loading your shopping lists...
+                </div>
             ) : (
                 <ul className="shopping-list">
                     {items.length === 0 ? (
