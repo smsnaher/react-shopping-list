@@ -4,7 +4,7 @@ export interface ChildItem {
   price: number
 }
 
-export interface Item {
+export interface ListItem {
   id: string
   name: string
   quantity: number
@@ -12,7 +12,7 @@ export interface Item {
   childItems?: ChildItem[]
 }
 
-export const items: Item[] = [
+export const items: ListItem[] = [
   { 
     id: 'apples', 
     name: 'Apples', 
@@ -36,7 +36,7 @@ export const items: Item[] = [
   },
 ]
 
-export const getItemById = (id: string): Item | undefined => {
+export const getItemById = (id: string): ListItem | undefined => {
   return items.find(item => item.id === id)
 }
 
@@ -58,7 +58,7 @@ const getStorageKey = (userId?: string): string => {
   return userId ? `shopping-list-items-${userId}` : 'shopping-list-items'
 }
 
-export const loadItemsFromStorage = (userId?: string): Item[] => {
+export const loadItemsFromStorage = (userId?: string): ListItem[] => {
   try {
     const storageKey = getStorageKey(userId)
     const stored = localStorage.getItem(storageKey)
@@ -71,7 +71,7 @@ export const loadItemsFromStorage = (userId?: string): Item[] => {
   return items // Return default items if nothing in storage or error
 }
 
-export const saveItemsToStorage = (itemsToSave: Item[], userId?: string): void => {
+export const saveItemsToStorage = (itemsToSave: ListItem[], userId?: string): void => {
   try {
     const storageKey = getStorageKey(userId)
     localStorage.setItem(storageKey, JSON.stringify(itemsToSave))
@@ -80,11 +80,11 @@ export const saveItemsToStorage = (itemsToSave: Item[], userId?: string): void =
   }
 }
 
-export const getItemByIdFromList = (id: string, itemsList: Item[]): Item | undefined => {
+export const getItemByIdFromList = (id: string, itemsList: ListItem[]): ListItem | undefined => {
   return itemsList.find(item => item.id === id)
 }
 
-export const updateItemInStorage = (updatedItem: Item, userId?: string): void => {
+export const updateItemInStorage = (updatedItem: ListItem, userId?: string): void => {
   try {
     const items = loadItemsFromStorage(userId)
     const updatedItems = items.map(item => 
@@ -96,7 +96,7 @@ export const updateItemInStorage = (updatedItem: Item, userId?: string): void =>
   }
 }
 
-export const addChildItemToItem = (parentItemId: string, childItem: ChildItem, userId?: string): Item | null => {
+export const addChildItemToItem = (parentItemId: string, childItem: ChildItem, userId?: string): ListItem | null => {
   try {
     const items = loadItemsFromStorage(userId)
     const parentItem = items.find(item => item.id === parentItemId)
@@ -116,13 +116,13 @@ export const addChildItemToItem = (parentItemId: string, childItem: ChildItem, u
   }
 }
 
-export const removeChildItemFromItem = (parentItemId: string, childItemId: string, userId?: string): Item | null => {
+export const removeChildItemFromItem = (parentItemId: string, childItemId: string, userId?: string): ListItem | null => {
   try {
     const items = loadItemsFromStorage(userId)
     const parentItem = items.find(item => item.id === parentItemId)
     
     if (parentItem && parentItem.childItems) {
-      parentItem.childItems = parentItem.childItems.filter(child => child.id !== childItemId)
+      parentItem.childItems = parentItem.childItems.filter((child: ChildItem) => child.id !== childItemId)
       updateItemInStorage(parentItem, userId)
       return parentItem
     }

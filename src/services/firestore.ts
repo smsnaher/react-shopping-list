@@ -12,18 +12,18 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import type { Item, ChildItem } from '../data/items';
+import type { ListItem, ChildItem } from '../data/items';
 
 // Collection names
 const ITEMS_COLLECTION = 'shopping-items';
 
 // In-memory cache
-const itemsCache = new Map<string, Item[]>();
+const itemsCache = new Map<string, ListItem[]>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const cacheTimestamps = new Map<string, number>();
 
 // Firestore document interface
-export interface FirestoreItem extends Omit<Item, 'id'> {
+export interface FirestoreItem extends Omit<ListItem, 'id'> {
   userId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -32,7 +32,7 @@ export interface FirestoreItem extends Omit<Item, 'id'> {
 // Local storage utilities for offline support
 const getLocalStorageKey = (userId: string) => `firestore-cache-${userId}`;
 
-const saveToLocalStorage = (userId: string, items: Item[]) => {
+const saveToLocalStorage = (userId: string, items: ListItem[]) => {
   try {
     localStorage.setItem(getLocalStorageKey(userId), JSON.stringify({
       items,
@@ -43,7 +43,7 @@ const saveToLocalStorage = (userId: string, items: Item[]) => {
   }
 };
 
-const loadFromLocalStorage = (userId: string): Item[] | null => {
+const loadFromLocalStorage = (userId: string): ListItem[] | null => {
   try {
     const stored = localStorage.getItem(getLocalStorageKey(userId));
     if (stored) {
@@ -69,7 +69,7 @@ export class FirestoreService {
   }
 
   // Get all items for a user with caching and fallbacks
-  static async getUserItems(userId: string, useCache: boolean = true): Promise<Item[]> {
+  static async getUserItems(userId: string, useCache: boolean = true): Promise<ListItem[]> {
     // 1. Return from memory cache if valid
     if (useCache && this.isCacheValid(userId) && itemsCache.has(userId)) {
       console.log('📋 Returning items from memory cache');
@@ -90,14 +90,14 @@ export class FirestoreService {
   }
 
   // Fetch fresh data from Firestore
-  private static async fetchFreshData(userId: string): Promise<Item[]> {
+  private static async fetchFreshData(userId: string): Promise<ListItem[]> {
     try {
       console.log('🔥 Fetching fresh data from Firestore');
       const itemsRef = collection(db, ITEMS_COLLECTION);
       const q = query(itemsRef, where('userId', '==', userId));
       
       const querySnapshot = await getDocs(q);
-      const items: Item[] = [];
+      const items: ListItem[] = [];
       
       querySnapshot.forEach((doc) => {
         const data = doc.data() as FirestoreItem;
@@ -131,12 +131,12 @@ export class FirestoreService {
   }
 
   // Set up real-time listener for items
-  static setupRealtimeListener(userId: string, callback: (items: Item[]) => void): () => void {
+  static setupRealtimeListener(userId: string, callback: (items: ListItem[]) => void): () => void {
     const itemsRef = collection(db, ITEMS_COLLECTION);
     const q = query(itemsRef, where('userId', '==', userId));
     
     return onSnapshot(q, (querySnapshot) => {
-      const items: Item[] = [];
+      const items: ListItem[] = [];
       
       querySnapshot.forEach((doc) => {
         const data = doc.data() as FirestoreItem;
@@ -161,7 +161,7 @@ export class FirestoreService {
   }
 
   // Get a single item by ID with caching
-  static async getItemById(itemId: string, userId: string): Promise<Item | null> {
+  static async getItemById(itemId: string, userId: string): Promise<ListItem | null> {
     try {
       // First check if we have it in cache
       const cachedItems = itemsCache.get(userId);
@@ -200,10 +200,10 @@ export class FirestoreService {
   }
 
   // Create a new item with optimistic updates
-  static async createItem(item: Omit<Item, 'id'>, userId: string): Promise<string> {
+  static async createItem(item: Omit<ListItem, 'id'>, userId: string): Promise<string> {
     // Generate temporary ID for optimistic update
     const tempId = `temp-${Date.now()}`;
-    const optimisticItem: Item = { ...item, id: tempId };
+    const optimisticItem: ListItem = { ...item, id: tempId };
     
     try {
       // Add to cache immediately for instant UI update
@@ -339,7 +339,7 @@ export class FirestoreService {
   }
 
   // Update an existing item
-  static async updateItem(itemId: string, updates: Partial<Omit<Item, 'id'>>): Promise<void> {
+  static async updateItem(itemId: string, updates: Partial<Omit<ListItem, 'id'>>): Promise<void> {
     try {
       const itemRef = doc(db, ITEMS_COLLECTION, itemId);
       await updateDoc(itemRef, {

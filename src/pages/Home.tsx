@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { Modal } from '../components/index'
 import { useAuth } from '../contexts/AuthContext'
 import { FirestoreService } from '../services/firestore'
-import type { Item } from '../data/items'
+import type { ListItem } from '../data/items'
 
 const Home = () => {
     const { currentUser } = useAuth()
-    const [items, setItems] = useState<Item[]>([])
+    const [items, setItems] = useState<ListItem[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [loading, setLoading] = useState(true)
     const [initialLoad, setInitialLoad] = useState(true)

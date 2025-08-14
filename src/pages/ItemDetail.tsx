@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { FirestoreService } from '../services/firestore'
 import {
     generateChildItemId,
-    type Item,
+    type ListItem,
     type ChildItem
 } from '../data/items'
 import ChildItemModal from '../components/modal/ChildItemModal'
@@ -12,7 +12,7 @@ import ChildItemModal from '../components/modal/ChildItemModal'
 function ItemDetail() {
     const { itemId } = useParams<{ itemId: string }>()
     const { currentUser } = useAuth()
-    const [item, setItem] = useState<Item | undefined>(undefined)
+    const [item, setItem] = useState<ListItem | undefined>(undefined)
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
 
