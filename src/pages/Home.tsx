@@ -113,9 +113,11 @@ const Home = () => {
         const userConfirmed = confirm("Are you sure you want to delete this item?")
         if (!userConfirmed) return
 
+        // Store the item before deleting for potential rollback
+        const itemToDelete = items.find(item => item.id === itemId)
+
         try {
             // Optimistic update - remove from UI immediately
-            const itemToDelete = items.find(item => item.id === itemId)
             setItems(prevItems => prevItems.filter(item => item.id !== itemId))
 
             // Delete from Firestore

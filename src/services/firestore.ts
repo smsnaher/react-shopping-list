@@ -9,9 +9,7 @@ import {
   query,
   where,
   onSnapshot,
-  Timestamp,
-  enableNetwork,
-  disableNetwork
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Item, ChildItem } from '../data/items';
@@ -245,12 +243,13 @@ export class FirestoreService {
 
   // Delete an item with optimistic updates
   static async deleteItem(itemId: string, userId: string): Promise<void> {
+    // Store the item before deleting for potential rollback
+    const cachedItems = itemsCache.get(userId) || [];
+    const deletedItem = cachedItems.find(item => item.id === itemId);
+    
     try {
       // Remove from cache immediately for instant UI update
-      const cachedItems = itemsCache.get(userId) || [];
       const optimisticItems = cachedItems.filter(item => item.id !== itemId);
-      const deletedItem = cachedItems.find(item => item.id === itemId);
-      
       itemsCache.set(userId, optimisticItems);
       
       // Delete from Firestore
@@ -262,8 +261,8 @@ export class FirestoreService {
     } catch (error) {
       // Restore item on error
       if (deletedItem) {
-        const cachedItems = itemsCache.get(userId) || [];
-        itemsCache.set(userId, [...cachedItems, deletedItem]);
+        const currentItems = itemsCache.get(userId) || [];
+        itemsCache.set(userId, [...currentItems, deletedItem]);
       }
       
       console.error('Error deleting item:', error);
@@ -293,7 +292,7 @@ export class FirestoreService {
       if (!item) throw new Error('Parent item not found');
 
       const updatedChildItems = [...(item.childItems || []), childItem];
-      await this.updateItem(itemId, { childItems: updatedChildItems }, userId);
+      await this.updateItem(itemId, { childItems: updatedChildItems });
       
       // Update localStorage
       saveToLocalStorage(userId, updatedItems);
@@ -327,7 +326,7 @@ export class FirestoreService {
       if (!item) throw new Error('Parent item not found');
 
       const updatedChildItems = (item.childItems || []).filter((child: ChildItem) => child.id !== childItemId);
-      await this.updateItem(itemId, { childItems: updatedChildItems }, userId);
+      await this.updateItem(itemId, { childItems: updatedChildItems });
       
       // Update localStorage
       saveToLocalStorage(userId, updatedItems);
@@ -340,7 +339,7 @@ export class FirestoreService {
   }
 
   // Update an existing item
-  static async updateItem(itemId: string, updates: Partial<Omit<Item, 'id'>>, userId: string): Promise<void> {
+  static async updateItem(itemId: string, updates: Partial<Omit<Item, 'id'>>): Promise<void> {
     try {
       const itemRef = doc(db, ITEMS_COLLECTION, itemId);
       await updateDoc(itemRef, {
